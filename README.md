@@ -26,5 +26,5 @@
 Sample Output:
 
 <p align="center">
-    <img src="sample-output.png" alt="drawing" width="40%"/>
+    <img src="sample-output.png" alt="drawing" width="100%"/>
 </p>

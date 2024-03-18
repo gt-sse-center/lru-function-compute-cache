@@ -2,11 +2,14 @@
 #include <fstream>
 #include <vector>
 #include <math.h>
-#include "tCache.h"
 #include <sstream>
 #include <chrono>
+#include <iomanip>
+
+#include "tCache.h"
 
 using namespace std;
+using namespace std::chrono;
 
 tCache<fn_ips,double> cache;
 double time_in_get_Kunsat = 0;
@@ -42,26 +45,29 @@ double cached_getKunsat(double Th, double Psi, double nVG,double alphaVG, double
 	fn_ips lookupkey(Th,Psi,nVG,alphaVG,Ksat);
         if(cache.exists(lookupkey)){
         	Kunsat = cache.get(lookupkey);
+		if(Kunsat == 0)
+			cout << "Cached 0" <<endl;
                 hit = 1;
 		return Kunsat;
         }
+		Kunsat = get_Kunsat(Th,Psi,nVG,alphaVG,Ksat,hit);
         cache.put(lookupkey,Kunsat);
+		//cout << "Caching " <<Kunsat<<endl;
 	hit = 0;
 	auto stop = high_resolution_clock::now();
         duration<double, std::milli> ms_double = stop - start;
         //cout<< "Time in cache: "<<ms_double.count()<<endl;
 	time_in_cache += ms_double.count();
-        Kunsat = get_Kunsat(Th,Psi,nVG,alphaVG,Ksat,hit);
+
 	return Kunsat;
 
 }
 
 /* Pocess each line in the function trace */
-int process_call_trace_line(std::string line, bool cacheEnabled, double &timespent)
+int process_call_trace_line(std::string line, bool cacheEnabled, double &outkunsat)
 {
 
 
-	using namespace std::chrono;
 
 	double Th, Psi, nVG,alphaVG,Ksat;
 	double Kunsat = 0;
@@ -86,11 +92,13 @@ int process_call_trace_line(std::string line, bool cacheEnabled, double &timespe
 	//cout << Th << "," << Psi << ", " << nVG << "," <<alphaVG << "," <<Ksat <<",";
 	if(cacheEnabled){
 
-		cached_getKunsat(Th,Psi,nVG,alphaVG,Ksat,hit);
+		outkunsat = cached_getKunsat(Th,Psi,nVG,alphaVG,Ksat,hit);
 	}
 	else{
-		get_Kunsat(Th,Psi,nVG,alphaVG,Ksat,hit);
+		outkunsat = get_Kunsat(Th,Psi,nVG,alphaVG,Ksat,hit);
 	}
+	
+
 
 	return hit;
 }
@@ -101,7 +109,7 @@ int main(int argc, char* argv[])
 	double hit=0, miss=0;
 	int num_lines = 0;
 	bool cache_enabled = 0;
-	double time_spent = 0;
+	double outkunsat = 0;
 	
 	// handle different command line arguements
 	// nothing specified - run with cache disabled
@@ -116,20 +124,27 @@ int main(int argc, char* argv[])
    	 }
 
 	std::string line;
-	std::ifstream infile("calltrace.txt");
-	//std::string tracefile("calltrace.txt");
+	std::ifstream infile("onehrfullprecisiontrace.txt");
+	//std::ifstream infile("calltrace.txt");
+	std::string outQualifier = cache_enabled?"cached":"nocache";
+	std::string outFileName = std::string("calloutput").append(outQualifier);
 
+	std::ofstream outputFile;
+	outputFile.open(outFileName,std::ios::binary);
 	for (; std::getline(infile,line); ++num_lines)
 	{
 		//cout << line <<endl;
-		res = process_call_trace_line(line, cache_enabled, time_spent);
+		res = process_call_trace_line(line, cache_enabled, outkunsat);
 		if(res == 0){
 			miss++;
 		}
 		else{
 			hit++;
 		}
+		if (outputFile.is_open())
+			outputFile<<setprecision(14)<< outkunsat<<endl;
 	}
+	outputFile.close();
 	std::cout<<endl<<"----------------------"<<endl;
 	std::cout<<"Total calls: "<<num_lines<<endl;
 	std::cout<<"Time spent in get_Kunsat: "<<time_in_get_Kunsat<<endl;;
