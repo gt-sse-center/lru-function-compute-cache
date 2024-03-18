@@ -1,4 +1,6 @@
-# tCache benchmark - Implementation of LRU Cache to cache function computation in tRIBS
+# LRU function compute cache 
+- implementation of header only LRU Cache
+- a simple microbenchmark test
 
 ## Clone
 
