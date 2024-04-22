@@ -11,7 +11,7 @@
 using namespace std;
 using namespace std::chrono;
 
-tCache<fn_ips,double> cache;
+tCache<kunsat_ips_key,double> cache(200);
 double time_in_get_Kunsat = 0;
 double time_in_cache = 0;
 
@@ -42,7 +42,7 @@ double cached_getKunsat(double Th, double Psi, double nVG,double alphaVG, double
 {
 	double Kunsat = 0;
 	auto start = high_resolution_clock::now();
-	fn_ips lookupkey(Th,Psi,nVG,alphaVG,Ksat);
+	kunsat_ips_key lookupkey(Th,Psi,nVG,alphaVG,Ksat);
         if(cache.exists(lookupkey)){
         	Kunsat = cache.get(lookupkey);
 		if(Kunsat == 0)
@@ -131,7 +131,7 @@ int main(int argc, char* argv[])
 
 	std::ofstream outputFile;
 	outputFile.open(outFileName,std::ios::binary);
-	for (; std::getline(infile,line); ++num_lines)
+	for (; std::getline(infile,line) && num_lines < 100000; ++num_lines)
 	{
 		//cout << line <<endl;
 		res = process_call_trace_line(line, cache_enabled, outkunsat);
