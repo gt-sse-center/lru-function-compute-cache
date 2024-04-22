@@ -13,7 +13,7 @@
 using namespace std;
 using namespace std::chrono;
 
-class fn_ips
+class kunsat_ips_key
 {
 
 	public:
@@ -23,82 +23,117 @@ class fn_ips
         double alphaVG;
         double Ksat;
 
-        fn_ips(double psi, double th, double nvg, double alphavg, double ksat):
-                Psi(psi),Th(th),nVG(nvg),alphaVG(alphavg),Ksat(ksat)
-        {}
-  bool operator==(const fn_ips &other) const
-  { 
-	  //std::cout<<"[tCache] Operator =="<<endl; 
-	  return (Psi == other.Psi
-            && Th == other.Th
-            && nVG == other.nVG
-            && alphaVG == other.alphaVG);
-            //&& Ksat == other.Ksat);
-  }
+    	kunsat_ips_key(double psi, double th, double nvg, double alphavg, double ksat):
+                Psi(psi),Th(th),nVG(nvg),alphaVG(alphavg),Ksat(ksat){}
 
-  bool operator<(const fn_ips &other) const
-  {
+  		bool operator<(const kunsat_ips_key &other) const
+  		{
 
-	  //std::cout<<"[tCache] Operator <"<<endl;
-	  return (Th < other.Th);
-	  bool res = true; 
-	  if (Th < other.Th)
-		  return res;
-	  else if (Psi < other.Psi)
-		  return res;
-	  else if (nVG < other.nVG)
-		  return res;
-	  else if (alphaVG < other.alphaVG)
-		  return res;
+		if (Th < other.Th)
+			return true;
+		if (other.Th < Th)
+				return false;
 
-	  return false;
-  }
+		if (Psi < other.Psi)
+			return true;
+		if (other.Psi < Psi)
+				return false;
+
+		if (nVG < other.nVG)
+			return true;
+		if (other.nVG < nVG)
+				return false;
+
+		if (alphaVG < other.alphaVG)
+			return true;
+		if (other.alphaVG < alphaVG)
+				return false;
+		
+		return false;
+	}
 };
 
-class fn_ips_hasher
+// We can use this for get_Theta() & get_dTheta_Psi() caches
+class theta_ips_key
 {
-  public:
-  std::size_t operator()(const fn_ips& k) const
-  {
-    std::size_t result = 0;
-    std::hash<double> hasher;
-    using std::hash;
 
-  // picked from Boost::hascombine
-  //  result ^= hasher(k.Psi) + 0x9e3779b9 + (result << 6) + (result>>2);
-  //  result ^= hasher(k.Th) + 0x9e3779b9 + (result << 6) + (result>>2);
-  //  result ^= hasher(k.nVG) + 0x9e3779b9 + (result << 6) + (result>>2);
-  //  result ^= hasher(k.alphaVG) + 0x9e3779b9 + (result << 6) + (result>>2);
-    
-    // below is naive - see if this is ok??
-    // Compute individual hash values for first,
-    // second and third and combine them using XOR
-    // and bit shifting:
-    result =  (hash<double>()(k.Psi) ^
-    		hash<double>()(k.Th) ^
-    		hash<double>()(k.nVG) ^
-    		hash<double>()(k.alphaVG));
-		//hash<double>(k.nVG)
-    return result;
-  }
+	public:
+        double Psi;
+        double nVG;
+        double alphaVG;
 
+    	theta_ips_key(double psi, double nvg, double alphavg):
+                Psi(psi),nVG(nvg),alphaVG(alphavg){}
+
+  		bool operator<(const theta_ips_key &other) const
+  		{
+
+		if (Psi < other.Psi)
+			return true;
+		if (other.Psi < Psi)
+				return false;
+
+		if (nVG < other.nVG)
+			return true;
+		if (other.nVG < nVG)
+				return false;
+
+		if (alphaVG < other.alphaVG)
+			return true;
+		if (other.alphaVG < alphaVG)
+				return false;
+		
+		return false;
+	}
 };
 
-//template<typename key_t, typename value_t,typename key_hasher_t>
-template<typename key_t, typename value_t>//,typename key_hasher_t>
+
+class psi_ips_key
+{
+
+	public:
+        double Th;
+        double nVG;
+        double alphaVG;
+
+    	psi_ips_key(double Th, double nvg, double alphavg):
+                Th(Th),nVG(nvg),alphaVG(alphavg){}
+
+  		bool operator<(const psi_ips_key &other) const
+  		{
+
+		if (Th < other.Th)
+			return true;
+		if (other.Th < Th)
+				return false;
+
+		if (nVG < other.nVG)
+			return true;
+		if (other.nVG < nVG)
+				return false;
+
+		if (alphaVG < other.alphaVG)
+			return true;
+		if (other.alphaVG < alphaVG)
+				return false;
+		
+		return false;
+	}
+};
+
+template<typename key_t, typename value_t>
 class tCache {
 	public:
 	typedef typename std::pair<key_t, value_t> key_value_pair_t;
 	typedef typename std::list<key_value_pair_t>::iterator list_iterator_t;
 
-	tCache()
+	tCache(size_t csize)
 	{
+			_max_size = csize;
 	}
 
 	void put(const key_t& key, const value_t& value) {
 		
-		//std::cout <<"[tCache] put"<<std::endl;
-		//auto start = high_resolution_clock::now();
 		auto it = _cache_items_map.find(key);
 		_cache_items_list.push_front(key_value_pair_t(key, value));
 		if (it != _cache_items_map.end()) {
@@ -113,34 +148,20 @@ class tCache {
 			_cache_items_map.erase(last->first);
 			_cache_items_list.pop_back();
 		}
-                //auto stop = high_resolution_clock::now();
-                //duration<double, std::milli> ms_double = stop - start;
-		//std::cout<< "[tCache] put: "<<ms_double.count()<<endl;
 	}
 
 	const value_t& get(const key_t& key) {
-		//std::cout <<"[tCache] get"<<std::endl;
-		//auto start = high_resolution_clock::now();
 		auto it = _cache_items_map.find(key);
 		if (it == _cache_items_map.end()) {
-			//throw std::range_error("[tCache] Unknown Issue");
 			return defaulter;
 		} else {
 			_cache_items_list.splice(_cache_items_list.begin(), _cache_items_list, it->second);
-                //auto stop = high_resolution_clock::now();
-                //duration<double, std::milli> ms_double = stop - start;
-		//std::cout<< "[tCache] get: "<<ms_double.count()<<endl;
 		return it->second->second;
 		}
 	}
 
 	bool exists(const key_t& key) const {
-		
-		auto start = high_resolution_clock::now();
 		bool res =  _cache_items_map.find(key) != _cache_items_map.end();
-                auto stop = high_resolution_clock::now();
-                duration<double, std::milli> ms_double = stop - start;
-		//std::cout<< "[tCache] exists: "<<ms_double.count()<<endl;
 		return res;
 	}
 
@@ -151,7 +172,7 @@ class tCache {
 private:
 	std::list<key_value_pair_t> _cache_items_list;
 	std::map<key_t, list_iterator_t> _cache_items_map;
-	const size_t _max_size = 200;
-	value_t defaulter;
+	size_t _max_size = 0;
+	value_t defaulter = -1;
 };
 #endif
